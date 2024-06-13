@@ -25,10 +25,10 @@ using libpentobi_base::get_transformed;
 
 namespace {
 
-void add(PentobiTree& tree, const SgfNode& node, bool is_player_black,
+void add(PentobiTree& tree, const SgfNode& node, bool is_first_player,
          bool is_real_move, float result)
 {
-    unsigned index = is_player_black ? 0 : 1;
+    unsigned index = is_first_player ? 0 : 1;
     array<unsigned short, 2> count;
     array<float, 2> avg_result;
     array<unsigned short, 2> real_count;
@@ -76,9 +76,9 @@ bool compare_sequence(ArrayList<ColorMove, Board::max_moves>& s1,
     return false;
 }
 
-unsigned get_real_count(const SgfNode& node, bool is_player_black)
+unsigned get_real_count(const SgfNode& node, bool is_first_player)
 {
-    unsigned index = is_player_black ? 0 : 1;
+    unsigned index = is_first_player ? 0 : 1;
     array<unsigned, 2> count;
     array<double, 2> avg_result;
     array<unsigned, 2> real_count;
@@ -103,7 +103,7 @@ OutputTree::OutputTree(Variant variant)
 
 OutputTree::~OutputTree() = default; // Non-inline to avoid GCC -Winline warning
 
-void OutputTree::add_game(const Board& bd, unsigned player_black,
+void OutputTree::add_game(const Board& bd, unsigned first_player,
                           float result, const array<bool,
                           Board::max_moves>& is_real_move)
 {
@@ -126,7 +126,7 @@ void OutputTree::add_game(const Board& bd, unsigned player_black,
     }
 
     auto node = &m_tree.get_root();
-    add(m_tree, *node, player_black == 0, true, result);
+    add(m_tree, *node, first_player == 0, true, result);
     unsigned nu_moves_3 = 0;
     for (unsigned i = 0; i < sequence.size(); ++i)
     {
@@ -145,28 +145,28 @@ void OutputTree::add_game(const Board& bd, unsigned player_black,
         {
             child = &m_tree.create_new_child(*node);
             m_tree.set_move(*child, mv);
-            add(m_tree, *child, player == player_black, true, result);
+            add(m_tree, *child, player == first_player, true, result);
             return;
         }
-        add(m_tree, *child, player == player_black, is_real_move[i], result);
+        add(m_tree, *child, player == first_player, is_real_move[i], result);
         node = child;
     }
 }
 
-void OutputTree::generate_move(bool is_player_black, const Board& bd,
+void OutputTree::generate_move(bool is_first_player, const Board& bd,
                                Color to_play, Move& mv)
 {
     bool play_real;
     for (unsigned i = 0; i < m_transforms.size(); ++i)
     {
-        generate_move(is_player_black, bd, to_play, *m_transforms[i],
+        generate_move(is_first_player, bd, to_play, *m_transforms[i],
                       *m_inv_transforms[i], mv, play_real);
         if (play_real || ! mv.is_null())
             break;
     }
 }
 
-void OutputTree::generate_move(bool is_player_black, const Board& bd,
+void OutputTree::generate_move(bool is_first_player, const Board& bd,
                                Color to_play, const PointTransform& transform,
                                const PointTransform& inv_transform, Move& mv,
                                bool& play_real)
@@ -188,7 +188,7 @@ void OutputTree::generate_move(bool is_player_black, const Board& bd,
     }
     unsigned sum = 0;
     for (auto& i : node->get_children())
-        sum += get_real_count(i, is_player_black);
+        sum += get_real_count(i, is_first_player);
     if (sum == 0)
         return;
     uniform_real_distribution<double> distribution(0, 1);
@@ -201,7 +201,7 @@ void OutputTree::generate_move(bool is_player_black, const Board& bd,
     sum = 0;
     for (auto& i : node->get_children())
     {
-        auto real_count = get_real_count(i, is_player_black);
+        auto real_count = get_real_count(i, is_first_player);
         if (real_count == 0)
             continue;
         sum += real_count;

@@ -17,7 +17,7 @@ using libpentobi_base::ScoreType;
 
 //-----------------------------------------------------------------------------
 
-TwoGtp::TwoGtp(const string& black, const string& white, Variant variant,
+TwoGtp::TwoGtp(const vector<string> binaries, Variant variant,
                unsigned nu_games, Output& output, bool quiet,
                const string& log_prefix, bool fast_open)
     : m_quiet(quiet),
@@ -25,14 +25,14 @@ TwoGtp::TwoGtp(const string& black, const string& white, Variant variant,
       m_variant(variant),
       m_nu_games(nu_games),
       m_bd(variant),
-      m_output(output),
-      m_black(black),
-      m_white(white)
+      m_output(output)
 {
-    if (! m_quiet)
-    {
-        m_black.enable_log(log_prefix + "B");
-        m_white.enable_log(log_prefix + "W");
+    for (int i = 0; i < (int)binaries.size(); i++) {
+        GtpConnection* conn = new GtpConnection(binaries[i]);
+        if (! m_quiet) {
+            conn->enable_log(log_prefix + to_string(i));
+        }
+        m_connections.push_back(conn);
     }
     if (get_nu_colors(m_variant) == 2)
     {
@@ -48,7 +48,7 @@ TwoGtp::TwoGtp(const string& black, const string& white, Variant variant,
     }
 }
 
-float TwoGtp::get_result(unsigned player_black)
+float TwoGtp::get_result(unsigned first_player)
 {
     float result;
     auto nu_players = m_bd.get_nu_players();
@@ -61,7 +61,7 @@ float TwoGtp::get_result(unsigned player_black)
             result = 0;
         else
             result = 0.5;
-        if (player_black != 0)
+        if (first_player != 0)
             result = 1 - result;
     }
     else
@@ -72,7 +72,7 @@ float TwoGtp::get_result(unsigned player_black)
         array<float, Color::range> player_result;
         get_multiplayer_result(nu_players, points, player_result,
                                m_bd.get_break_ties());
-        result = player_result[player_black];
+        result = player_result[first_player];
     }
     return result;
 }
@@ -84,11 +84,13 @@ void TwoGtp::play_game(unsigned game_number)
                          "Game ", game_number, "\n"
                          "================================================");
     m_bd.init();
-    send_both("clear_board");
-    auto cpu_black = send_cputime(m_black);
-    auto cpu_white = send_cputime(m_white);
+    send_all("clear_board");
+    std::vector<double> cpu;
+    for (GtpConnection* conn: m_connections) {
+        cpu.push_back(send_cputime(conn));
+    }
     unsigned nu_players = m_bd.get_nu_players();
-    unsigned player_black = game_number % nu_players;
+    unsigned first_player = game_number % nu_players;
     bool resign = false;
     ostringstream sgf_string;
     Writer sgf(sgf_string);
@@ -103,26 +105,26 @@ void TwoGtp::play_game(unsigned game_number)
     while (! m_bd.is_game_over())
     {
         auto to_play = m_bd.get_effective_to_play();
-        if (m_variant == Variant::classic_3 && to_play == Color(3))
+        if (m_variant == Variant::classic_3 && to_play == Color(3)) {
             player = m_bd.get_alt_player();
-        else
+        } else {
             player = to_play.to_int() % nu_players;
-        auto& player_connection = (player == player_black ? m_black : m_white);
-        auto& other_connection = (player == player_black ? m_white : m_black);
+        }
+        auto player_connection = m_connections[player];
         auto color = m_colors[to_play.to_int()];
         Move mv;
         if (m_fast_open
-                && m_output.generate_fast_open_move(player == player_black,
+                && m_output.generate_fast_open_move(player == first_player,
                                                     m_bd, to_play, mv))
         {
             is_real_move[m_bd.get_nu_moves()] = false;
             LIBBOARDGAME_LOG("Playing fast opening move");
-            player_connection.send("play " + color + " " + m_bd.to_string(mv));
+            player_connection->send("play " + color + " " + m_bd.to_string(mv));
         }
         else
         {
             is_real_move[m_bd.get_nu_moves()] = true;
-            auto response = player_connection.send("genmove " + color);
+            auto response = player_connection->send("genmove " + color);
             if (response == "resign")
             {
                 resign = true;
@@ -138,28 +140,33 @@ void TwoGtp::play_game(unsigned game_number)
         if (mv.is_null() || ! m_bd.is_legal(to_play, mv))
             throw runtime_error("invalid move: " + m_bd.to_string(mv));
         m_bd.play(to_play, mv);
-        other_connection.send("play " + color + " " + m_bd.to_string(mv));
+        for (int i = 0; i < m_connections.size(); i++) {
+            if (i != player) {
+                m_connections[i]->send("play " + color + " " + m_bd.to_string(mv));
+            }
+        }
     }
-    cpu_black = send_cputime(m_black) - cpu_black;
-    cpu_white = send_cputime(m_white) - cpu_white;
+    for (int i = 0; i < m_connections.size(); i++) {
+        cpu[i] = send_cputime(m_connections[i]) - cpu[i];
+    }
     float result;
     if (resign)
     {
         if (nu_players > 2)
             throw runtime_error("resign only allowed in two-player variants");
-        result = (player == player_black ? 0 : 1);
+        result = (player == first_player ? 0 : 1);
     }
     else
-        result = get_result(player_black);
+        result = get_result(first_player);
     sgf.end_tree();
     sgf_string << '\n';
-    m_output.add_result(game_number, result, m_bd, player_black, cpu_black,
-                        cpu_white, sgf_string.str(), is_real_move);
+    m_output.add_result(game_number, result, m_bd, first_player, cpu,
+                        sgf_string.str(), is_real_move);
 }
 
 void TwoGtp::run()
 {
-    send_both(string("set_game ") + to_string(m_variant));
+    send_all(string("set_game ") + to_string(m_variant));
     while (! m_output.check_sentinel())
     {
         unsigned n = m_output.get_next();
@@ -167,18 +174,19 @@ void TwoGtp::run()
             break;
         play_game(n);
     }
-    send_both("quit");
+    send_all("quit");
 }
 
-void TwoGtp::send_both(const string& cmd)
+void TwoGtp::send_all(const string& cmd)
 {
-    m_black.send(cmd);
-    m_white.send(cmd);
+    for (GtpConnection* conn: m_connections) {
+        conn->send(cmd);
+    }
 }
 
-double TwoGtp::send_cputime(GtpConnection& gtp_connection)
+double TwoGtp::send_cputime(GtpConnection* gtp_connection)
 {
-    string response = gtp_connection.send("cputime");
+    string response = gtp_connection->send("cputime");
     istringstream in(response);
     double cputime;
     in >> cputime;

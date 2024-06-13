@@ -65,8 +65,8 @@ Output::~Output()
 }
 
 void Output::add_result(unsigned n, float result, const Board& bd,
-                        unsigned player_black, double cpu_black,
-                        double cpu_white, const string& sgf,
+                        unsigned first_player, vector<double> cpu,
+                        const string& sgf,
                         const array<bool, Board::max_moves>& is_real_move)
 {
     {
@@ -79,14 +79,16 @@ void Output::add_result(unsigned n, float result, const Board& bd,
         line << n << '\t'
              << setprecision(4) << result << '\t'
              << bd.get_nu_moves() << '\t'
-             << player_black << '\t'
-             << setprecision(5) << cpu_black << '\t'
-             << cpu_white << '\t'
-             << nu_fast_open;
+             << first_player << '\t';
+        line << setprecision(5);
+        for (double d /*haha*/ : cpu) {
+            line << d << '\t';
+        }
+        line << nu_fast_open;
         m_games.insert({n, line.str()});
         m_sgf_buffer << sgf;
         if (m_create_tree)
-            m_output_tree.add_game(bd, player_black, result, is_real_move);
+            m_output_tree.add_game(bd, first_player, result, is_real_move);
     }
     if (m_timer() > m_save_interval)
     {
@@ -100,11 +102,11 @@ bool Output::check_sentinel()
     return ! ifstream(m_prefix + ".stop").fail();
 }
 
-bool Output::generate_fast_open_move(bool is_player_black, const Board& bd,
+bool Output::generate_fast_open_move(bool is_first_player, const Board& bd,
                                      Color to_play, Move& mv)
 {
     lock_guard lock(m_mutex);
-    m_output_tree.generate_move(is_player_black, bd, to_play, mv);
+    m_output_tree.generate_move(is_first_player, bd, to_play, mv);
     return ! mv.is_null();
 }
 

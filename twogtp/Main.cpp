@@ -27,15 +27,19 @@ int main(int argc, char** argv)
         vector<string> specs = {
             "analyze:",
             "black|b:",
+            "blue:",
             "fastopen",
             "file|f:",
             "game|g:",
+            "green:",
             "nugames|n:",
             "quiet",
+            "red:",
             "saveinterval:",
             "threads:",
             "tree",
             "white|w:",
+            "yellow:",
         };
         Options opt(argc, argv, specs);
         if (opt.contains("analyze"))
@@ -43,8 +47,12 @@ int main(int argc, char** argv)
             analyze(opt.get("analyze"));
             return 0;
         }
-        auto black = opt.get("black");
-        auto white = opt.get("white");
+        auto black = opt.get("black", "");
+        auto blue = opt.get("blue", "");
+        auto white = opt.get("white", "");
+        auto yellow = opt.get("yellow", "");
+        auto red = opt.get("red", "");
+        auto green = opt.get("green", "");
         auto prefix = opt.get("file", "output");
         auto nu_games = opt.get<unsigned>("nugames", 1);
         auto nu_threads = opt.get<unsigned>("threads", 1);
@@ -61,12 +69,20 @@ int main(int argc, char** argv)
         Output output(variant, prefix, create_tree);
         vector<shared_ptr<TwoGtp>> twogtps;
         twogtps.reserve(nu_threads);
+        vector<string> binaries;
+        if (black.length() && white.length()) {
+          binaries = { black, white };
+        } else if (blue.length() && yellow.length() && red.length() && green.length()) {
+          binaries = { blue, yellow, red, green };
+        } else {
+          throw runtime_error("must supply black and white or blue, yellow, red and green.");
+        }
         for (unsigned i = 0; i < nu_threads; ++i)
         {
             string log_prefix;
             if (nu_threads > 1)
                 log_prefix = to_string(i + 1);
-            auto twogtp = make_shared<TwoGtp>(black, white, variant,
+            auto twogtp = make_shared<TwoGtp>(binaries, variant,
                                               nu_games, output, quiet,
                                               log_prefix, fast_open);
             twogtp->set_save_interval(save_interval);

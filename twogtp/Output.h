@@ -30,7 +30,7 @@ public:
     void set_save_interval(double seconds) { m_save_interval = seconds; }
 
     void add_result(unsigned n, float result, const Board& bd,
-                    unsigned player_black, double cpu_black, double cpu_white,
+                    unsigned first_player, vector<double> cpu,
                     const string& sgf,
                     const array<bool, Board::max_moves>& is_real_move);
 
@@ -38,7 +38,7 @@ public:
 
     bool check_sentinel();
 
-    bool generate_fast_open_move(bool is_player_black, const Board& bd,
+    bool generate_fast_open_move(bool is_first_player, const Board& bd,
                                  Color to_play, Move& mv);
 
 private:

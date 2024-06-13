@@ -22,7 +22,7 @@ using libpentobi_base::Variant;
 class TwoGtp
 {
 public:
-    TwoGtp(const string& black, const string& white, Variant variant,
+    TwoGtp(const vector<string> binaries, Variant variant,
            unsigned nu_games, Output& output, bool quiet,
            const string& log_prefix, bool fast_open);
 
@@ -43,19 +43,17 @@ private:
 
     Output& m_output;
 
-    GtpConnection m_black;
-
-    GtpConnection m_white;
+    vector<GtpConnection*> m_connections;
 
     array<string, Color::range> m_colors;
 
-    float get_result(unsigned player_black);
+    float get_result(unsigned first_player);
 
     void play_game(unsigned game_number);
 
-    void send_both(const string& cmd);
+    void send_all(const string& cmd);
 
-    static double send_cputime(GtpConnection& gtp_connection);
+    static double send_cputime(GtpConnection* gtp_connection);
 };
 
 //-----------------------------------------------------------------------------

@@ -46,17 +46,17 @@ public:
     void save(const string& file);
 
     /** Generate a move for a player from the tree.
-        @param is_player_black
+        @param is_first_player
         @param bd The board with the current position.
         @param to_play The color to generate the move for..
         @param[out] mv The generated move, or Move::null() if no move is in the
         tree for this position or if the player should generate a real move
         now. */
-    void generate_move(bool is_player_black, const Board& bd, Color to_play,
+    void generate_move(bool is_first_player, const Board& bd, Color to_play,
                        Move& mv);
 
     /** Add the moves of a game to the tree and update the move counters. */
-    void add_game(const Board& bd, unsigned player_black, float result,
+    void add_game(const Board& bd, unsigned first_player, float result,
                   const array<bool, Board::max_moves>& is_real_move);
 
 private:
@@ -71,7 +71,7 @@ private:
 
     mt19937 m_random;
 
-    void generate_move(bool is_player_black, const Board& bd, Color to_play,
+    void generate_move(bool is_first_player, const Board& bd, Color to_play,
                        const PointTransform& transform,
                        const PointTransform& inv_transform, Move& mv,
                        bool& play_real);
