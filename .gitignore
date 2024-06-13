@@ -1,0 +1,9 @@
+*~
+*.a
+CMakeCache.txt
+CMakeFiles
+cmake_install.cmake
+learn_tool/learn-tool
+Makefile
+pentobi_gtp/pentobi-gtp
+twogtp/twogtp
